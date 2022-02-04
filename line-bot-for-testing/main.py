@@ -121,7 +121,7 @@ def get_sentence(word):
         try:
             # 例句之html
             soup_for_sentence = BeautifulSoup(getHTML("https://dictionary.cambridge.org/dictionary/english/" + word), "html.parser")
-            # 單字變化(負數、過去式...)之html
+            # 單字變化(複數、過去式...)之html
             soup_for_changing = BeautifulSoup(getHTML("https://www.dictionary.com/browse/" + word), "html.parser")
         except:
             # 無法取得html->直接回傳題目
