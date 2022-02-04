@@ -557,9 +557,12 @@ def upload_file(event):
 @handler.add(MessageEvent)
 def handle_message(event):
     print(event)
+    with open("status.json", "r") as f:
+        globals()["vocabulary_state"] = json.load(f)
     # 進入or已經在測驗模式
     if event.source.type == "user" and (event.source.user_id in vocabulary_state or (event.message.type == "text" and (event.message.text.strip() == "單字" or event.message.text.strip() == "錯題"))):
         vocabulary(event)
+        json.dump(globals()["vocabulary_state"], open("status.json", "w"), indent = 4)
     # 使用說明
     elif event.message.type == "text" and event.message.text == "說明":
         line_bot_api.reply_message(event.reply_token, TextSendMessage("目前本機器人提供單字測驗服務\n單字：單字測驗\n錯題：複習錯題\n離開：結束測驗模式\n上傳格式：查看上傳題庫之格式\n\n有任何問題或bug請聯絡邱沐恩喔😊"))
