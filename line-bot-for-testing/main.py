@@ -355,9 +355,11 @@ def vocabulary(event):
                     if len(obj) > 1:
                         vocabulary_state[user_id]["state"] = "get_scope"
                         word = "請輸入課次/項目\n目前有:"
+                        # 依序加入課次
                         actions = []
                         for i in sorted(obj.keys()):
                             word += "\n" + i
+                            # 按鈕
                             actions.append({
                                 "type": "button",
                                 "style": "link",
@@ -368,6 +370,7 @@ def vocabulary(event):
                                 "text": i
                                 }
                             })
+                        # 選單
                         contents = {
                             "type": "bubble",
                             "hero": {
@@ -557,8 +560,10 @@ def handle_message(event):
     # 進入or已經在測驗模式
     if event.source.type == "user" and (event.source.user_id in vocabulary_state or (event.message.type == "text" and (event.message.text.strip() == "單字" or event.message.text.strip() == "錯題"))):
         vocabulary(event)
+    # 使用說明
     elif event.message.type == "text" and event.message.text == "說明":
         line_bot_api.reply_message(event.reply_token, TextSendMessage("目前本機器人提供單字測驗服務\n單字：單字測驗\n錯題：複習錯題\n離開：結束測驗模式\n上傳格式：查看上傳題庫之格式\n\n有任何問題或bug請聯絡邱沐恩喔😊"))
+    # 上傳格式說明
     elif event.message.type == "text" and event.message.text == "上傳格式":
         line_bot_api.reply_message(event.reply_token, ImageSendMessage(original_content_url = "https://dsm01pap004files.storage.live.com/y4mnTqgh48y71_PbmHLSDMMLrYt8JfcPb6Er5-q1Allc0CpYMWSS6vslxdTNRzrmP1dg2z6UOUCCgZ--SKdRTp4AI2WiSAS-AynWEtwzCaKGmbeoLvcOrzRAJnxZeg2CFjmb1IhG1YsfG0D1V29D8hYPV_MuZQi03C7qFVgpYHA1gf6FFCqVWKPf5ZWy-Ng1Cbz?width=1280&height=669&cropmode=none", preview_image_url = "https://dsm01pap004files.storage.live.com/y4mnTqgh48y71_PbmHLSDMMLrYt8JfcPb6Er5-q1Allc0CpYMWSS6vslxdTNRzrmP1dg2z6UOUCCgZ--SKdRTp4AI2WiSAS-AynWEtwzCaKGmbeoLvcOrzRAJnxZeg2CFjmb1IhG1YsfG0D1V29D8hYPV_MuZQi03C7qFVgpYHA1gf6FFCqVWKPf5ZWy-Ng1Cbz?width=1280&height=669&cropmode=none"))
         # line_bot_api.reply_message(event.reply_token, TextSendMessage("請使用excel格式(.xlsx)\n檔案名稱設為「考試範圍」\n工作表名稱設為「課次/項目」\n\n第一列請打中文\n第二列請打英文\n上傳後系統會自動從網路上抓例句"))
