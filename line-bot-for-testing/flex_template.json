@@ -1,0 +1,34 @@
+{
+    "type": "bubble",
+    "hero": {
+        "type": "image",
+        "url": "",
+        "margin": "none",
+        "size": "full"
+    },
+    "body": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+        {
+            "type": "text",
+            "text": "",
+            "weight": "bold",
+            "size": "xl",
+            "style": "normal",
+            "decoration": "none"
+        },
+        {
+            "type": "text",
+            "text": ""
+        }
+        ]
+    },
+    "footer": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "sm",
+        "contents": [],
+        "flex": 0
+    }
+}
