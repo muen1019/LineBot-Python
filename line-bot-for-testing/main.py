@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 import urllib
 from fake_useragent import UserAgent
 import time
+import requests
 
 app = Flask(__name__)
 # line api 基本資訊
@@ -28,6 +29,7 @@ handler = WebhookHandler(os.environ["SECRET"])
 # cnt: 該範圍的總題目數/已選擇之題數
 # correct_num: 已答對題數
 vocabulary_state = {}
+need_sentence = 1
 
 # line bot 初始化
 @app.route("/callback", methods=['POST'])
@@ -49,6 +51,18 @@ def callback():
         abort(400)
 
     return 'OK'
+
+# 傳送Line Notify通知
+def LineNotify(token, msg):
+    headers = {
+        "Authorization": "Bearer " + token, 
+        "Content-Type" : "application/x-www-form-urlencoded"
+    }
+
+    payload = {'message': msg}
+    notify = requests.post("https://notify-api.line.me/api/notify", headers = headers, params = payload)
+    return notify.status_code
+
 # 寫入錯題紀錄
 def write_wrong_question(user_id, title, chinese, english):
     # 開啟原本紀錄
@@ -111,8 +125,9 @@ def getHTML(url):
 # 取得例句
 def get_sentence(word):
     s = time.time()
-    # 為片語(不找例句))
-    if " " in word:
+    global need_sentence
+    # 片語或不須例句(不找例句))
+    if " " in word or not need_sentence:
         # 只留頭尾提示
         v = list(word)
         for i in range(1, len(word) - 1):
@@ -181,9 +196,11 @@ def get_sentence(word):
         if sentences == []:
             v = list(word)
             for i in range(1, len(v) - 1):
-                if v[i] != " ": v[i] = "_"
+                if v[i] != " " and v[i] != "-": v[i] = "_"
             sentences.append("".join(v))
             answers.append(word)
+    msg = " ".join([word, "花費", "%.2f"%(time.time() - s), "s"])
+    LineNotify(os.environ["LINE_NOTIFY_TOKEN"], msg)
     print(word, "花費", "%.2f"%(time.time() - s), "s")
     return sentences, answers
 
@@ -448,7 +465,7 @@ def vocabulary(event):
                 word += f"{num + 1}. {vocabulary_state[user_id]['chinese'][num]} {''.join(v)}"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(word))
-
+    
 # 上傳題庫         
 def upload_file(event):
     upload_user_id = event.source.user_id
@@ -477,10 +494,10 @@ def upload_file(event):
         if sheet.ncols == 3: part_of_speech = sheet.col_values(2)
         for j in range(questions):
             # d[sheet_name].append([Chinese[j], English[j]])
-            English[j] = str(English[j]);
+            English[j] = str(English[j]).strip();
             sentence, ans = get_sentence(English[j])
-            if sheet.ncols == 3: Chinese[j] = Chinese[j] + f"({part_of_speech[j]})"
-            d[sheet_name].append([Chinese[j], English[j], sentence, ans])
+            if sheet.ncols == 3 and part_of_speech[j] != "" : Chinese[j] = Chinese[j] + f"({part_of_speech[j]})"
+            d[sheet_name].append([Chinese[j].strip(), English[j], sentence, ans])
         i += 1
     # 將題目新增至現有的題庫中
     try:
@@ -523,11 +540,11 @@ def handle_message(event):
         # 寫入json檔
         json.dump(state, open("state.json", "w"), indent = 4)
     # 使用說明
-    elif event.message.type == "text" and event.message.text == "說明":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage("目前本機器人提供單字測驗服務\n單字：單字測驗\n錯題：複習錯題\n離開：結束測驗模式\n上傳格式：查看上傳題庫之格式\n\n有任何問題或bug請聯絡邱沐恩喔😊"))
+    elif event.message.type == "text" and (event.message.text == "說明" or event.message.text == "help"):
+        line_bot_api.reply_message(event.reply_token, TextSendMessage("目前本機器人提供單字測驗服務\n單字：單字測驗\n錯題：複習錯題\n離開：結束測驗模式\n上傳格式：查看上傳題庫之格式\n例句 【1/0】：開啟／關閉自動抓取例句的模式\n\n有任何問題或bug請聯絡邱沐恩喔😊"))
     # 上傳格式說明
-    elif event.message.type == "text" and event.message.text == "上傳格式":
-        line_bot_api.reply_message(event.reply_token, ImageSendMessage(original_content_url = "https://dsm01pap004files.storage.live.com/y4mnTqgh48y71_PbmHLSDMMLrYt8JfcPb6Er5-q1Allc0CpYMWSS6vslxdTNRzrmP1dg2z6UOUCCgZ--SKdRTp4AI2WiSAS-AynWEtwzCaKGmbeoLvcOrzRAJnxZeg2CFjmb1IhG1YsfG0D1V29D8hYPV_MuZQi03C7qFVgpYHA1gf6FFCqVWKPf5ZWy-Ng1Cbz?width=1280&height=669&cropmode=none", preview_image_url = "https://dsm01pap004files.storage.live.com/y4mnTqgh48y71_PbmHLSDMMLrYt8JfcPb6Er5-q1Allc0CpYMWSS6vslxdTNRzrmP1dg2z6UOUCCgZ--SKdRTp4AI2WiSAS-AynWEtwzCaKGmbeoLvcOrzRAJnxZeg2CFjmb1IhG1YsfG0D1V29D8hYPV_MuZQi03C7qFVgpYHA1gf6FFCqVWKPf5ZWy-Ng1Cbz?width=1280&height=669&cropmode=none"))
+    elif event.message.type == "text" and (event.message.text == "上傳格式" or event.message.text.strip()  == "upload form"):
+        line_bot_api.reply_message(event.reply_token, ImageSendMessage(original_content_url = "https://i.imgur.com/EAV7gx4.jpg", preview_image_url = "https://i.imgur.com/EAV7gx4.jpg"))
         # line_bot_api.reply_message(event.reply_token, TextSendMessage("請使用excel格式(.xlsx)\n檔案名稱設為「考試範圍」\n工作表名稱設為「課次/項目」\n\n第一列請打中文\n第二列請打英文\n上傳後系統會自動從網路上抓例句"))
     # 檢查是否有人在答題
     elif event.message.type == "text" and event.source.type == "user" and event.message.text == "狀態" and event.source.user_id == "U3e5359d656fc6d1d6610ddcb33323bde":
@@ -540,6 +557,24 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage("目前無人使用"))
         else:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(f"目前{' '.join(user)}正在使用，共{len(user)}人"))
+    # 開關尋找例句功能
+    elif event.message.type == "text" and "例句" in event.message.text:
+        global need_sentence
+        if event.message.text == "例句": 
+            if need_sentence:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage("已開啟自動抓取例句"))
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage("未開啟自動抓取例句"))
+        else:
+            yes = event.message.text[3:]
+            if not yes.isdigit():
+                line_bot_api.reply_message(event.reply_token, TextSendMessage("輸入格式為「例句 1(開啟)/0(關閉)」"))
+            elif yes == "0":
+                need_sentence = 0
+                line_bot_api.reply_message(event.reply_token, TextSendMessage("已關閉自動抓取例句"))
+            else:
+                need_sentence = 1
+                line_bot_api.reply_message(event.reply_token, TextSendMessage("已開啟自動抓取例句"))
     # 上傳題庫
     elif event.message.type == 'file' and event.message.file_name[-4:] == "xlsx":
       	upload_file(event)
@@ -561,4 +596,7 @@ def running():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0")
+    try:
+        app.run(host="0.0.0.0")
+    except:
+        os.system("kill 1")
