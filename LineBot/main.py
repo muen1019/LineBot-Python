@@ -137,13 +137,11 @@ def track_expense(l, user_id):
     gs_client = gspread.authorize(cr)
     # 抓取現在時間
     now = dt.datetime.now(pytz.timezone("Asia/Taipei"))
-    # 是否為約旦記帳模式
-    # if now.month == 8 and now.day >= 5 and now.day <= 15 and user_id == my_user_id:
-    #     jordan_mode = 1
-    #     now = dt.datetime.now(pytz.timezone("Asia/Amman"))
-    # else:
-    #     jordan_mode = 0
-    jordan_mode = 0
+    foreign_mode = 0
+    # 是否為外國記帳模式
+    if now.month == 7 and now.day >= 27 and now.day <= 31:
+        foreign_mode = 1
+        # now = dt.datetime.now(pytz.timezone("Asia/Kuala_Lumpur"))
     # 另外補齊分鐘的0
     if now.minute < 10:
         minute = "0" + str(now.minute)
@@ -157,23 +155,22 @@ def track_expense(l, user_id):
         sheet = gs_client.open_by_key(muan_spreadsheet_key)
         person = "沐安"
     # 判別是否為爸媽的錢
-    if len(l) > 2 and l[2] == "爸媽":
+    if (len(l) > 2 and l[2] == "爸媽") or len(l) == 2:
         is_parent = 1
-        if jordan_mode:
-            wks_name = "2023/8約旦行_爸媽"
-        else:
-            wks_name = "爸媽的錢"
+        wks_name = "爸媽的錢"
     else:
         is_parent = 0
-        if jordan_mode:
-            wks_name = "2023/8約旦行"
+        if foreign_mode:
+            wks_name = "2024/7大陸行"
         else:
             wks_name = f"{str(now.year)}/{str(now.month)}"
     try:
         wks = sheet.worksheet(wks_name)
+        new_sheet = 0
     except:
         # 建立新workbook
         wks = sheet.add_worksheet(wks_name, 0, 0)
+        new_sheet = 1
         row_value = ["日期", "時間", "類別", "項目", "收入", "支出", "總計"]
         wks.append_row(row_value)
     # 判別收入或支出
@@ -198,6 +195,75 @@ def track_expense(l, user_id):
     # 回傳剩餘金額
     all_data = wks.get_all_values()
     lst = all_data[-1][-1]
+
+    # 創建 Pivot table(如果需要的話)
+    if new_sheet:
+        try:
+            pivot_wks = sheet.worsheet(wks_name + " 樞紐分析表")
+        except:
+            pivot_wks = sheet.add_worksheet(wks_name + " 樞紐分析表", 0, 0)
+            # 定義樞紐表的配置
+            pivot_table_request = {
+                "updateCells": {
+                    "rows": {
+                        "values": [
+                            {
+                                "pivotTable": {
+                                    "source": {
+                                        "sheetId": wks.id,
+                                        "startRowIndex": 0,
+                                        "startColumnIndex": 0,
+                                        "endRowIndex": 1000,  # 根據您的數據範圍進行調整
+                                        "endColumnIndex": 7
+                                    },
+                                    "rows": [
+                                        {
+                                            "sourceColumnOffset": 2,
+                                            "showTotals": True,
+                                            "sortOrder": "ASCENDING"
+                                        },
+                                        {
+                                            "sourceColumnOffset": 0,
+                                            "showTotals": True,
+                                            "sortOrder": "ASCENDING"
+                                        },
+                                        {
+                                            "sourceColumnOffset": 3,
+                                            "showTotals": False,
+                                            "sortOrder": "ASCENDING"
+                                        }
+                                    ],
+                                    "columns": [],
+                                    "values": [
+                                        {
+                                            "summarizeFunction": "SUM",
+                                            "formula": "='收入' - '支出'",  # 使用自定義公式
+                                            "name": "金額"
+                                        }
+                                    ],
+                                    "valueLayout": "HORIZONTAL"
+                                }
+                            }
+                        ]
+                    },
+                    "start": {
+                        "sheetId": pivot_wks.id,
+                        "rowIndex": 0,
+                        "columnIndex": 0
+                    },
+                    "fields": "pivotTable"
+                }
+            }
+        
+            # 添加樞紐表到試算表中
+            body = {
+                "requests": [
+                    pivot_table_request
+                ]
+            }
+        
+            sheet.batch_update(body)
+
     # 回傳資料給媽媽
     if is_parent:
         # 判別收入或支出

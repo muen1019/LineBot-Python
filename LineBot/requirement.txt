@@ -1,0 +1,11 @@
+Flask
+line-bot-sdk
+bs4
+google-api-python-client
+httplib2
+oauth2client
+Flask-RESTful
+gspread
+pytz
+beautifulsoup4
+requests
