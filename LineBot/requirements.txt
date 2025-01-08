@@ -1,5 +1,5 @@
 Flask
-line-bot-sdk==3.13
+line-bot-sdk
 bs4
 google-api-python-client
 httplib2
