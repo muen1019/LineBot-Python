@@ -119,16 +119,6 @@ def Can_Send(event):
     if event.source.type == "group" and event.source.group_id in From(): return True
     return False
 
-# 在次數達上限的時候 使用line notify傳送通知
-def LineNotify(token, msg):
-    headers = {
-        "Authorization": "Bearer " + token, 
-        "Content-Type" : "application/x-www-form-urlencoded"
-    }
-
-    payload = {'message': msg}
-    notify = requests.post("https://notify-api.line.me/api/notify", headers = headers, params = payload)
-    return notify.status_code
 
 # 記帳
 def track_expense(l, user_id):
@@ -350,10 +340,10 @@ def handle_message(event):
                     f.write(chunk)
             value = upload_file(fileName, os.path.join("storage", fileName))
             if value["success"] == False:
-               try: 
-                line_bot_api.push_message("U3e5359d656fc6d1d6610ddcb33323bde", TextSendMessage("Token已過期 請盡速更新並重新傳檔案"))
-               except:
-                    LineNotify(os.environ["LINE_NOTIFY_TOKEN"], "Token已過期 請盡速更新並重新傳檔案")
+                try: 
+                    line_bot_api.push_message("U3e5359d656fc6d1d6610ddcb33323bde", TextSendMessage("Token已過期 請盡速更新並重新傳檔案"))
+                except:
+                    pass
             else:
                 to = To()
                 fileURL = value["fileURL"]
@@ -363,7 +353,6 @@ def handle_message(event):
                     sticker = ok_sticker[randint(0, 2)]
                 except:
                     pass
-                    # LineNotify(os.environ["LINE_NOTIFY_TOKEN"], f"無法正常傳送訊息!\n以下是欲傳送的文字:\n\n大家好，我是物理小老師\n以下是老師要傳給同學的檔案：\n{fileURL}\n其他檔案：\n{folder_url}")
                 line_bot_api.reply_message(event.reply_token, StickerSendMessage(sticker[0], sticker[1]))
 
 @handler.add(JoinEvent)
