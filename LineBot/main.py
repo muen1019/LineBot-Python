@@ -1,7 +1,9 @@
+from itertools import product
 from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextSendMessage, ImageSendMessage, StickerSendMessage, FollowEvent, JoinEvent
+from linebot.v3 import WebhookHandler
+from linebot.v3.messaging import Configuration, ApiClient, ImageMessage, MessagingApi, ReplyMessageRequest, TextMessage, StickerMessage, ImageMessage, Emoji, PushMessageRequest
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.webhook import MessageEvent, JoinEvent, FollowEvent
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote
@@ -23,7 +25,7 @@ import pytz
 Debug_Mode = False
 app = Flask(__name__)
 # line api 基本資訊
-line_bot_api = LineBotApi(os.environ["ACCESS_TOKEN"])
+configuration = Configuration(access_token = os.environ["ACCESS_TOKEN"])
 handler = WebhookHandler(os.environ["SECRET"])
 # google drive(oauth2) 權限
 SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -63,15 +65,6 @@ def callback():
 
     return 'OK'
 
-# 取得長輩圖連結
-def send_picture():
-    r = requests.get("https://www.crazybless.com/good-morning/")
-    soup = BeautifulSoup(r.text, "html.parser")
-    result = str(soup.find(class_="qqwe").attrs["src"])
-    # 將網址轉換成utf-8
-    pic = quote(result.encode('utf8')).replace("%3A", ":")
-    print(pic)
-    return pic
 
 # 將檔案上傳至google drive
 def upload_file(fileName, path):
@@ -82,7 +75,7 @@ def upload_file(fileName, path):
     if not creds or creds.invalid:
         flow = client.flow_from_clientsecrets("credentials.json", SCOPES)
         creds = tools.run_flow(flow, store)
-    
+
     service = build("drive", "v3", http = creds.authorize(Http()),  static_discovery=False)
     print("開始上傳檔案")
     start = time.time()
@@ -100,7 +93,7 @@ def upload_file(fileName, path):
     except:
         value["success"] = False
     return value
-    
+
 
 # 檢查來源是否正確 獲取傳送對象
 def From():
@@ -244,25 +237,57 @@ def track_expense(l, user_id):
                     "fields": "pivotTable"
                 }
             }
-        
+
             # 添加樞紐表到試算表中
             body = {
                 "requests": [
                     pivot_table_request
                 ]
             }
-        
+
             sheet.batch_update(body)
 
     # 回傳資料給媽媽
     if is_parent:
-        # 判別收入或支出
-        if l[0].isdigit():
-            line_bot_api.push_message(mom_user_id, TextSendMessage(f"{person}增加了{int(l[0])}，目前剩餘{lst}元"))
-        else:
-            line_bot_api.push_message(mom_user_id, TextSendMessage(f"{person}購買了{l[0]}，花了{l[1]}元，剩餘{lst}元"))
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            # 判別收入或支出
+            if l[0].isdigit():
+                line_bot_api.push_message_with_http_info(
+                    PushMessageRequest(
+                        to=mom_user_id,
+                        messages=[
+                            StickerMessage(package_id="6362", sticker_id="11087925"),
+                            TextMessage(text=f"{person}增加了{int(l[0])}，目前剩餘{lst}元")
+                        ]
+                    )
+                )
+            else:
+                if int(lst) <= 0:
+                    line_bot_api.push_message_with_http_info(
+                        PushMessageRequest(
+                            to=mom_user_id,
+                            messages=[
+                                TextMessage(text=f"{person}購買了{l[0]}，花了{l[1]}元，剩餘{lst}元"),
+                                TextMessage(
+                                    text=f"$目前{person}的錢不足，請記得再補充！",
+                                    emojis=[Emoji(index=0, product_id="5ac1bfd5040ab15980c9b435", emoji_id="010")]),
+                                StickerMessage(package_id="8525", sticker_id="16581307")
+                            ]
+                        )
+                    )
+                else:
+                    line_bot_api.push_message_with_http_info(
+                        PushMessageRequest(
+                            to=mom_user_id,
+                            messages=[
+                                TextMessage(text=f"{person}購買了{l[0]}，花了{l[1]}元，剩餘{lst}元"),
+                            ]
+                        )
+                    )
+
     return lst
-    
+
 
 # def gpt_response(gpt_prompt):
 #     openai.api_key = os.environ["OPENAI_API_KEY"]
@@ -289,85 +314,157 @@ def track_expense(l, user_id):
 #     return response
 
 
+def get_message_content(message_id, save_path):
+    # LINE Messaging API 的端點
+    url = f"https://api-data.line.me/v2/bot/message/{message_id}/content"
+    # 設定標頭，包含身份驗證的 Channel Access Token
+    headers = {
+        "Authorization": f"Bearer {os.environ['ACCESS_TOKEN']}"
+    }
+    try:
+        # 發送 GET 請求
+        response = requests.get(url, headers=headers, stream=True)
+        response.raise_for_status()  # 如果回應碼不是 200，會引發例外
+
+        # 將內容儲存到本地檔案
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+
+        print(f"檔案已成功儲存至：{save_path}")
+    except requests.exceptions.RequestException as e:
+        print(f"取得訊息內容失敗：{e}")
+
 
 @handler.add(MessageEvent)
 def handle_message(event):
     print(event)
-    if event.source.type == "group" and event.source.group_id == "Ccea56b432a88c91e8ae50f7399dfdc77": return
-    if event.message.type == "text":
-        if event.message.text[:2] == "早安":
-            pic = send_picture()
-            line_bot_api.reply_message(
-                event.reply_token,
-                ImageSendMessage(original_content_url=pic, preview_image_url=pic))
-        elif "好電" in event.message.text:
-            if event.source.type == "group":
-                profile = line_bot_api.get_group_member_profile(event.source.group_id, event.source.user_id)
-            else:
-                profile = line_bot_api.get_profile(event.source.user_id)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(str(profile.display_name) + "好電⚡"))
-            
-        elif event.source.type == "user":
-            # 記帳
-            if event.source.user_id == my_user_id or event.source.user_id == muan_user_id:
-                l = list(event.message.text.split())
-                if l[0].replace(".", "").isdigit() or (len(l) > 1 and l[1].replace(".", "").isdigit()):
-                    lst = track_expense(l, event.source.user_id)
-                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text = f"記帳完成!剩餘{lst}元"))
+    with ApiClient(configuration) as api_client:
+        # 取得 line bot api
+        line_bot_api = MessagingApi(api_client)
+
+        # 忽略高中班群訊息
+        if event.source.type == "group" and event.source.group_id == "Ccea56b432a88c91e8ae50f7399dfdc77": return
+        # 處理文字訊息
+        if event.message.type == "text":
+            if event.message.text[:2] == "早安":
+                pic = f"https://www.crazybless.com/good-morning/morning/image/%E6%97%A9%E5%AE%89%E5%9C%96%E4%B8%8B%E8%BC%89%20({randint(1, 1477)}).jpg"
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[ImageMessage(original_content_url=pic, preview_image_url=pic)]
+                    )
+                )
+            elif "好電" in event.message.text:
+                # 取得使用者名稱
+                if event.source.type == "group":
+                    profile = line_bot_api.get_group_member_profile(event.source.group_id, event.source.user_id)
                 else:
-                   # line_bot_api.reply_message(
-                   #  event.reply_token,                TextSendMessage(text=gpt_response_web(event.message.text))) 
-                    line_bot_api.reply_message(
-                event.reply_token,                TextSendMessage(text=event.message.text))
-            else:
-                # line_bot_api.reply_message(
-                # event.reply_token,                TextSendMessage(text=gpt_response_web(event.message.text))) 
-                line_bot_api.reply_message(
-                event.reply_token,                 TextSendMessage(text=event.message.text))
-            
-    if event.message.type == "image":
-        content = line_bot_api.get_message_content(event.message.id)
-        with open(os.path.join("storage", "temp.jpg"), "wb") as f:
-            for chunk in content.iter_content():
-                f.write(chunk)
-    elif event.message.type == "file":
-        print(event.message.id)
-        if Debug_Mode or Can_Send(event):
-            content = line_bot_api.get_message_content(str(event.message.id))
-            fileName = event.message.file_name
-            with open(os.path.join("storage", fileName), "wb") as f:
-                for chunk in content.iter_content():
-                    f.write(chunk)
-            value = upload_file(fileName, os.path.join("storage", fileName))
-            if value["success"] == False:
-                try: 
-                    line_bot_api.push_message("U3e5359d656fc6d1d6610ddcb33323bde", TextSendMessage("Token已過期 請盡速更新並重新傳檔案"))
-                except:
-                    pass
-            else:
-                to = To()
-                fileURL = value["fileURL"]
-                try:                
-                    for i in to:
-                        line_bot_api.push_message(i, TextSendMessage("大家好，我是物理小老師的機器人\n以下是老師要傳給同學的檔案：\n" + fileURL + "\n其他檔案：\n" + folder_url))
-                    sticker = ok_sticker[randint(0, 2)]
-                except:
-                    pass
-                line_bot_api.reply_message(event.reply_token, StickerSendMessage(sticker[0], sticker[1]))
+                    profile = line_bot_api.get_profile(event.source.user_id)
+                # 傳送訊息
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=str(profile.display_name) + "好電⚡")]
+                    )
+                )
+    
+            elif event.source.type == "user":
+                # 記帳
+                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id:
+                    l = list(event.message.text.split())
+                    if l[0].replace(".", "").isdigit() or (len(l) > 1 and l[1].replace(".", "").isdigit()):
+                        lst = track_expense(l, event.source.user_id)
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text=f"記帳完成！$剩餘{lst}元", 
+                                        emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="009")])
+                                ]
+                            )
+                        )
+                    else:
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text=event.message.text)]
+                            )
+                        )
+                else:
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text=event.message.text)]
+                        )
+                    )
+    
+        if event.message.type == "image":
+            get_message_content(str(event.message.id), os.path.join("storage", "temp.jpg"))
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="圖片已儲存")]
+                )
+            )
+        elif event.message.type == "file":
+            print(event.message.id)
+            if Debug_Mode or Can_Send(event):
+                fileName = event.message.file_name
+                get_message_content(str(event.message.id), os.path.join("storage", fileName))
+                value = upload_file(fileName, os.path.join("storage", fileName))
+                if value["success"] == False:
+                    try: 
+                        line_bot_api.push_message_with_http_info(
+                            PushMessageRequest(
+                                to="U3e5359d656fc6d1d6610ddcb33323bde",
+                                messages=[TextMessage(text="Token已過期 請盡速更新並重新傳檔案")]
+                            )
+                        )
+                    except:
+                        pass
+                else:
+                    to = To()
+                    fileURL = value["fileURL"]
+                    try:                
+                        for i in to:
+                            line_bot_api.push_message(
+                                PushMessageRequest(
+                                    to=i,
+                                    messages=[TextMessage(text="大家好，我是物理小老師的機器人\n以下是老師要傳給同學的檔案：\n" + fileURL + "\n其他檔案：\n" + folder_url)]
+                                )
+                            )
+                        sticker = ok_sticker[randint(0, 2)]
+                    except:
+                        pass
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[StickerMessage(package_id = sticker[0], sticker_id = sticker[1])]
+                        )
+                    )
 
 @handler.add(JoinEvent)
 def handle_join(event):
     print(event)
-    with open(os.path.join("info", "group.txt"), "a") as f:
-        content = line_bot_api.get_group_summary(event.source.group_id)
-        f.write(content.group_name + " " + content.group_id + "\n")
+    with ApiClient(configuration) as api_client:
+        # 取得 line bot api
+        line_bot_api = MessagingApi(api_client)
+        with open(os.path.join("info", "group.txt"), "a") as f:
+            content = line_bot_api.get_group_summary(event.source.group_id)
+            f.write(content.group_name + " " + content.group_id + "\n")
 
 @handler.add(FollowEvent)
 def handler_follow(event):
     print(event)
-    with open(os.path.join("info", "user.txt"), "a") as f:
-        content = line_bot_api.get_profile(event.source.user_id)
-        f.write(content.display_name + " " + content.user_id + "\n")    
+    with ApiClient(configuration) as api_client:
+        # 取得 line bot api
+        line_bot_api = MessagingApi(api_client)
+        with open(os.path.join("info", "user.txt"), "a") as f:
+            content = line_bot_api.get_profile(event.source.user_id)
+            f.write(content.display_name + " " + content.user_id + "\n")    
 
 @app.route("/")
 def running():
