@@ -261,7 +261,6 @@ def track_expense(l, user_id):
                     PushMessageRequest(
                         to=mom_user_id,
                         messages=[
-                            StickerMessage(package_id="6362", sticker_id="11087925"),
                             TextMessage(text=f"{person}增加了{int(l[0])}，目前剩餘{lst}元")
                         ]
                     )
@@ -276,6 +275,7 @@ def track_expense(l, user_id):
                                 TextMessage(
                                     text=f"$目前{person}的錢不足，請記得再補充！",
                                     emojis=[Emoji(index=0, product_id="5ac1bfd5040ab15980c9b435", emoji_id="010")]),
+                                # https://developers.line.biz/en/docs/messaging-api/sticker-list/#sticker-definitions
                                 StickerMessage(package_id="8525", sticker_id="16581307")
                             ]
                         )
@@ -335,6 +335,7 @@ def bible_thread():
         current_time = dt.datetime.now()
         while current_time.hour != 6 or current_time.minute != 0:
             sleep(30)
+            requests.get("https://linebot-python-cfwy.onrender.com")
             current_time = dt.datetime.now()
         
         msg = send_bible()
