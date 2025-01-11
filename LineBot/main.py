@@ -324,7 +324,7 @@ def send_bible():
     start_date = dt.datetime(2022, 6, 9)
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
-    keyword = d[(current_date - start_date).days]
+    keyword = d[(current_date - start_date).days % len(d)]
     result = YoutubeSearch("陪你讀聖經2 " + keyword, max_results=1).to_dict()
     print("https://youtu.be/watch?v=" + result[0]["id"])
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
@@ -333,7 +333,7 @@ def send_bible():
 def bible_thread():
     while True:
         current_time = dt.datetime.now()
-        while current_time.hour != 6 and current_time.minute != 0:
+        while current_time.hour != 6 or current_time.minute != 0:
             sleep(30)
             current_time = dt.datetime.now()
         
