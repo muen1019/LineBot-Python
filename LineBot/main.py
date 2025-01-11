@@ -20,6 +20,10 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials as sac
 import datetime as dt
 import pytz
+import threading
+from time import sleep
+from youtube_search import YoutubeSearch
+from json import dump, load
 # from revChatGPT.V1 import Chatbot 
 
 Debug_Mode = False
@@ -314,6 +318,42 @@ def track_expense(l, user_id):
 #     return response
 
 
+def send_bible():
+    # 取得今日陪你讀聖經連結
+    current_date = dt.datetime.now()
+    start_date = dt.datetime(2022, 6, 9)
+    with open("bible.json", "r", encoding="utf-8") as f:
+        d = load(f)
+    keyword = d[(current_date - start_date).days]
+    result = YoutubeSearch("陪你讀聖經2 " + keyword, max_results=1).to_dict()
+    print("https://youtu.be/watch?v=" + result[0]["id"])
+    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
+
+
+def bible_thread():
+    while True:
+        current_time = dt.datetime.now()
+        while current_time.hour != 6 and current_time.minute != 0:
+            sleep(30)
+            current_time = dt.datetime.now()
+        
+        msg = send_bible()
+
+        with ApiClient(configuration) as api_client:
+            # 取得 line bot api
+            line_bot_api = MessagingApi(api_client)
+            # 發送訊息
+            line_bot_api.push_message_with_http_info(
+                PushMessageRequest(
+                    to="Cc4ee21f94f51250cb3f0eeecf16e03fc",
+                    messages=[
+                        TextMessage(text=msg)
+                    ]
+                )
+            )
+        sleep(60)
+
+
 def get_message_content(message_id, save_path):
     # LINE Messaging API 的端點
     url = f"https://api-data.line.me/v2/bot/message/{message_id}/content"
@@ -366,7 +406,21 @@ def handle_message(event):
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text=str(profile.display_name) + "好電⚡")]
+                        messages=[TextMessage(
+                            text=str(profile.display_name) + "好電⚡",
+                            quote_token=event.message.quote_token
+                        )]
+                    )
+                )
+            elif event.message.text[:2] == "聖經":
+                msg = send_bible()
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(
+                            text=msg,
+                            quote_token=event.message.quote_token
+                        )]
                     )
                 )
     
@@ -382,7 +436,9 @@ def handle_message(event):
                                 messages=[
                                     TextMessage(
                                         text=f"記帳完成！$剩餘{lst}元", 
-                                        emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="009")])
+                                        emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="009")],
+                                        quote_token=event.message.quote_token
+                                    )
                                 ]
                             )
                         )
@@ -409,42 +465,42 @@ def handle_message(event):
                     messages=[TextMessage(text="圖片已儲存")]
                 )
             )
-        elif event.message.type == "file":
-            print(event.message.id)
-            if Debug_Mode or Can_Send(event):
-                fileName = event.message.file_name
-                get_message_content(str(event.message.id), os.path.join("storage", fileName))
-                value = upload_file(fileName, os.path.join("storage", fileName))
-                if value["success"] == False:
-                    try: 
-                        line_bot_api.push_message_with_http_info(
-                            PushMessageRequest(
-                                to="U3e5359d656fc6d1d6610ddcb33323bde",
-                                messages=[TextMessage(text="Token已過期 請盡速更新並重新傳檔案")]
-                            )
-                        )
-                    except:
-                        pass
-                else:
-                    to = To()
-                    fileURL = value["fileURL"]
-                    try:                
-                        for i in to:
-                            line_bot_api.push_message(
-                                PushMessageRequest(
-                                    to=i,
-                                    messages=[TextMessage(text="大家好，我是物理小老師的機器人\n以下是老師要傳給同學的檔案：\n" + fileURL + "\n其他檔案：\n" + folder_url)]
-                                )
-                            )
-                        sticker = ok_sticker[randint(0, 2)]
-                    except:
-                        pass
-                    line_bot_api.reply_message_with_http_info(
-                        ReplyMessageRequest(
-                            reply_token=event.reply_token,
-                            messages=[StickerMessage(package_id = sticker[0], sticker_id = sticker[1])]
-                        )
-                    )
+        # elif event.message.type == "file":
+        #     print(event.message.id)
+        #     if Debug_Mode or Can_Send(event):
+        #         fileName = event.message.file_name
+        #         get_message_content(str(event.message.id), os.path.join("storage", fileName))
+        #         value = upload_file(fileName, os.path.join("storage", fileName))
+        #         if value["success"] == False:
+        #             try: 
+        #                 line_bot_api.push_message_with_http_info(
+        #                     PushMessageRequest(
+        #                         to="U3e5359d656fc6d1d6610ddcb33323bde",
+        #                         messages=[TextMessage(text="Token已過期 請盡速更新並重新傳檔案")]
+        #                     )
+        #                 )
+        #             except:
+        #                 pass
+        #         else:
+        #             to = To()
+        #             fileURL = value["fileURL"]
+        #             try:                
+        #                 for i in to:
+        #                     line_bot_api.push_message(
+        #                         PushMessageRequest(
+        #                             to=i,
+        #                             messages=[TextMessage(text="大家好，我是物理小老師的機器人\n以下是老師要傳給同學的檔案：\n" + fileURL + "\n其他檔案：\n" + folder_url)]
+        #                         )
+        #                     )
+        #                 sticker = ok_sticker[randint(0, 2)]
+        #             except:
+        #                 pass
+        #             line_bot_api.reply_message_with_http_info(
+        #                 ReplyMessageRequest(
+        #                     reply_token=event.reply_token,
+        #                     messages=[StickerMessage(package_id = sticker[0], sticker_id = sticker[1])]
+        #                 )
+        #             )
 
 @handler.add(JoinEvent)
 def handle_join(event):
@@ -472,6 +528,8 @@ def running():
 
 if __name__ == "__main__":
     try:
+        bible_t = threading.Thread(target=bible_thread)
+        bible_t.start()
         app.run(host="0.0.0.0")
     except:
         os.system("kill 1")
