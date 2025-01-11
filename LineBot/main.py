@@ -126,8 +126,8 @@ def track_expense(l, user_id):
     now = dt.datetime.now(pytz.timezone("Asia/Taipei"))
     foreign_mode = 0
     # 是否為外國記帳模式
-    if now.month == 7 and now.day >= 27 and now.day <= 31:
-        foreign_mode = 1
+    # if now.month == 7 and now.day >= 27 and now.day <= 31:
+    #     foreign_mode = 1
         # now = dt.datetime.now(pytz.timezone("Asia/Kuala_Lumpur"))
     # 另外補齊分鐘的0
     if now.minute < 10:
@@ -320,7 +320,7 @@ def track_expense(l, user_id):
 
 def send_bible():
     # 取得今日陪你讀聖經連結
-    current_date = dt.datetime.now()
+    current_date = dt.datetime.now(pytz.timezone("Asia/Taipei"))
     start_date = dt.datetime(2022, 6, 9)
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
@@ -332,7 +332,7 @@ def send_bible():
 
 def bible_thread():
     while True:
-        current_time = dt.datetime.now()
+        current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
         while current_time.hour != 6 or current_time.minute != 0:
             sleep(30)
             requests.get("https://linebot-python-cfwy.onrender.com")
