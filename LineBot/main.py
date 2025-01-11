@@ -321,7 +321,7 @@ def track_expense(l, user_id):
 def send_bible():
     # 取得今日陪你讀聖經連結
     current_date = dt.datetime.now(pytz.timezone("Asia/Taipei"))
-    start_date = dt.datetime(2022, 6, 9)
+    start_date = dt.datetime(2022, 6, 9, tzinfo=pytz.timezone("Asia/Taipei"))
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
     keyword = d[(current_date - start_date).days % len(d)]
