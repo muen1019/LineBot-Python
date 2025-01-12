@@ -336,7 +336,7 @@ def bible_thread():
         while current_time.hour != 6 or current_time.minute != 0:
             sleep(30)
             requests.get("https://linebot-python-cfwy.onrender.com")
-            current_time = dt.datetime.now()
+            current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
         
         msg = send_bible()
 
