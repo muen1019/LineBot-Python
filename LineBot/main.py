@@ -46,6 +46,7 @@ muan_spreadsheet_key = "1DD5pvHvoYi5hYhSEVkdjzddX-GaobnrJxO6Hpl8wxv4"
 my_user_id = "U3e5359d656fc6d1d6610ddcb33323bde"
 muan_user_id = "U56745f8381f264a269dbca24eb4c6977"
 mom_user_id = "U587c68afa4b2167d47d76d72dcd7a0d3"
+bible_group_id = "Cbbf8bfb6f0e42e94f6d2edcfd6e231cd"
 
 
 # line bot 初始化
@@ -336,8 +337,8 @@ def bible_thread():
         while current_time.hour != 6 or current_time.minute != 0:
             sleep(30)
             requests.get("https://linebot-python-cfwy.onrender.com")
-            current_time = dt.datetime.now()
-        
+            current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
+
         msg = send_bible()
 
         with ApiClient(configuration) as api_client:
@@ -346,7 +347,7 @@ def bible_thread():
             # 發送訊息
             line_bot_api.push_message_with_http_info(
                 PushMessageRequest(
-                    to="Cc4ee21f94f51250cb3f0eeecf16e03fc",
+                    to=bible_group_id,
                     messages=[
                         TextMessage(text=msg)
                     ]
@@ -424,7 +425,7 @@ def handle_message(event):
                         )]
                     )
                 )
-    
+
             elif event.source.type == "user":
                 # 記帳
                 if event.source.user_id == my_user_id or event.source.user_id == muan_user_id:
@@ -457,7 +458,7 @@ def handle_message(event):
                             messages=[TextMessage(text=event.message.text)]
                         )
                     )
-    
+
         if event.message.type == "image":
             get_message_content(str(event.message.id), os.path.join("storage", "temp.jpg"))
             line_bot_api.reply_message_with_http_info(
