@@ -338,7 +338,7 @@ def bible_thread():
             sleep(30)
             requests.get("https://linebot-python-cfwy.onrender.com")
             current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
-
+        
         msg = send_bible()
 
         with ApiClient(configuration) as api_client:
