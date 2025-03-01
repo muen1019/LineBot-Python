@@ -319,8 +319,8 @@ def track_expense(l, user_id):
 #     return response
 
 
+# 取得今日陪你讀聖經連結
 def send_bible():
-    # 取得今日陪你讀聖經連結
     current_date = dt.datetime.now(pytz.timezone("Asia/Taipei"))
     start_date = dt.datetime(2022, 6, 9, tzinfo=pytz.timezone("Asia/Taipei"))
     with open("bible.json", "r", encoding="utf-8") as f:
@@ -330,7 +330,7 @@ def send_bible():
     print("https://youtu.be/watch?v=" + result[0]["id"])
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
 
-
+# 自動傳送當天陪你讀聖經影片
 def bible_thread():
     while True:
         current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
@@ -530,8 +530,8 @@ def running():
 
 if __name__ == "__main__":
     try:
-        bible_t = threading.Thread(target=bible_thread)
-        bible_t.start()
+        # bible_t = threading.Thread(target=bible_thread)
+        # bible_t.start()
         app.run(host="0.0.0.0")
     except:
         os.system("kill 1")
