@@ -326,9 +326,14 @@ def send_bible():
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
     keyword = d[(current_date - start_date).days % len(d)]
-    result = YoutubeSearch("陪你讀聖經2 " + keyword, max_results=1).to_dict()
-    print("https://youtu.be/watch?v=" + result[0]["id"])
-    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
+    result = YoutubeSearch("陪你讀聖經2 " + keyword, max_results=5).to_dict()
+    for video in result:
+        title = video["title"]
+        if "陪你讀聖經2" in title and keyword in title:
+            video_url = "https://youtu.be/watch?v=" + video["id"]
+            print(video_url)
+            return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
+    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結"
 
 # 自動傳送當天陪你讀聖經影片
 def bible_thread():
@@ -416,15 +421,26 @@ def handle_message(event):
                 )
             elif event.message.text[:2] == "聖經":
                 msg = send_bible()
-                line_bot_api.reply_message_with_http_info(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(
-                            text=msg,
-                            quote_token=event.message.quote_token
-                        )]
+                # 找不到影片連結
+                if "找不到符合的影片連結" in msg:
+                    line_bot_api.push_message_with_http_info(
+                        PushMessageRequest(
+                            to=my_user_id,
+                            messages=[
+                                TextMessage(text=msg)
+                            ]
+                        )
                     )
-                )
+                else:
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=msg,
+                                quote_token=event.message.quote_token
+                            )]
+                        )
+                    )
 
             elif event.source.type == "user":
                 # 記帳
