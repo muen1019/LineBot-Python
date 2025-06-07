@@ -124,12 +124,16 @@ def track_expense(l, user_id):
     cr = sac.from_json_keyfile_name(auth_json)
     gs_client = gspread.authorize(cr)
     # 抓取現在時間
-    now = dt.datetime.now(pytz.timezone("Asia/Taipei"))
+    now = dt.datetime.now(pytz.timezone("ROC"))
     foreign_mode = 0
     # 是否為外國記帳模式
-    # if now.month == 7 and now.day >= 27 and now.day <= 31:
-    #     foreign_mode = 1
-        # now = dt.datetime.now(pytz.timezone("Asia/Kuala_Lumpur"))
+    if now.year == 2025 and user_id == my_user_id and ((now.month == 6 and now.day >= 20) or (now.month == 7 and now.day <= 19)): 
+        foreign_mode = 1
+        country = "新加坡"
+    elif now.year == 2025 and now.month == 7 and now.day >= 22 and now.day <= 28:
+        now = dt.datetime.now(pytz.timezone("Japan"))
+        foreign_mode = 1
+        country = "日本"
     # 另外補齊分鐘的0
     if now.minute < 10:
         minute = "0" + str(now.minute)
@@ -149,7 +153,7 @@ def track_expense(l, user_id):
     else:
         is_parent = 0
         if foreign_mode:
-            wks_name = "2024/7大陸行"
+            wks_name = f"{str(now.year)} {country}"
         else:
             wks_name = f"{str(now.year)}/{str(now.month)}"
     try:
