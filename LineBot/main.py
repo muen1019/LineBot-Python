@@ -122,69 +122,77 @@ def Can_Send(event):
 
 
 # 記帳相關
-# 確保 Settings 工作表存在
-def init_setting_sheet():
+# 確保兩個工作表存在
+def init_region_sheet():
     # 認證
     cr = sac.from_json_keyfile_name(auth_json)
     gs_client = gspread.authorize(cr)
     ss = gs_client.open_by_key(setting_sheet_key)
     try:
-        sheet = ss.worksheet("setting")
+        sheet = ss.worksheet("Regions")
     except gspread.exceptions.WorksheetNotFound:
-        sheet = ss.add_worksheet(title="setting", rows=100, cols=3)
-        # 建立表頭
-        sheet.append_row(['region_name', 'timezone', 'user_id'])
+        sheet = ss.add_worksheet(title="Regions", rows=100, cols=2)
+        sheet.append_row(['region_name', 'timezone'])
+    return sheet
+
+def init_user_region_sheet():
+    cr = sac.from_json_keyfile_name(auth_json)
+    gs_client = gspread.authorize(cr)
+    ss = gs_client.open_by_key(setting_sheet_key)
+    try:
+        sheet = ss.worksheet("User Regions")
+    except gspread.exceptions.WorksheetNotFound:
+        sheet = ss.add_worksheet(title="User Regions", rows=100, cols=3)
+        sheet.append_row(['user_id', 'region_name', 'timezone'])
     return sheet
 
 # 新增地區對應時區
 def add_new_region(region_name, timezone_str):
-    # 驗證時區
-    pytz.timezone(timezone_str)
-
-    sheet = init_setting_sheet()
-    # 檢查是否已存在同名 region
+    try:
+        pytz.timezone(timezone_str)
+    except pytz.UnknownTimeZoneError:
+        raise ValueError(f'不合法的時區：{timezone_str}')
+    sheet = init_region_sheet()
     regs = sheet.get_all_records()
     for r in regs:
-        if r['region_name'] == region_name and r['user_id'] == '':
-            # 已有全域 region
+        if r['region_name'] == region_name:
             sheet.update_cell(regs.index(r) + 2, 2, timezone_str)
             return
-    # append 新 region（user_id 空代表可被多人使用）
-    sheet.append_row([region_name, timezone_str, ''])
+    sheet.append_row([region_name, timezone_str])
 
 # 設定使用者地區
 def set_user_region(user_id, region_name):
-    sheet = init_setting_sheet()
-    regs = sheet.get_all_records()
-    # 先確認 region_name 有沒有登錄
+    region_sheet = init_region_sheet()
+    user_sheet = init_user_region_sheet()
+    regions = region_sheet.get_all_records()
     tz = None
-    for r in regs:
-        if r['region_name'] == region_name and r['user_id'] == '':
+    for r in regions:
+        if r['region_name'] == region_name:
             tz = r['timezone']
             break
     if tz is None:
         raise KeyError(f'地區 {region_name} 尚未註冊，請先使用「新增地區 <地區名稱> <時區字串>」指令。')
-    # 檢查 user_id 是否已有設定，若有就更新
-    for idx, r in enumerate(regs, start=2):
+    users = user_sheet.get_all_records()
+    for idx, r in enumerate(users, start=2):
         if r['user_id'] == user_id:
-            sheet.update_cell(idx, 1, region_name)
-            sheet.update_cell(idx, 2, tz)
+            user_sheet.update_cell(idx, 2, region_name)
+            user_sheet.update_cell(idx, 3, tz)
             return
-    # 否則附加一行
-    sheet.append_row([region_name, tz, user_id])
+    user_sheet.append_row([user_id, region_name, tz])
 
 # 取得使用者設定
 def get_user_setting(user_id):
-    sheet = init_setting_sheet()
-    regs = sheet.get_all_records()
-    for r in regs:
+    user_sheet = init_user_region_sheet()
+    users = user_sheet.get_all_records()
+    for r in users:
         if r['user_id'] == user_id:
             return r['region_name'], r['timezone']
-    # 沒設定，回傳預設臺灣
-    for r in regs:
-        if r['region_name'] == '臺灣' and r['user_id'] == '':
+    region_sheet = init_region_sheet()
+    regions = region_sheet.get_all_records()
+    for r in regions:
+        if r['region_name'] == '臺灣':
             return '臺灣', r['timezone']
-    return '臺灣', 'Asia/Taipei'
+    return '臺灣', 'ROC'
 
 
 # 記帳
@@ -194,7 +202,7 @@ def track_expense(l, user_id):
     gs_client = gspread.authorize(cr)
     # 抓取現在地區、時區、時間
     region, tz_str = get_user_setting(user_id)
-    now = dt.datetime.now(tz_str)
+    now = dt.datetime.now(pytz.timezone(tz_str))
     # 另外補齊分鐘的0
     if now.minute < 10:
         minute = "0" + str(now.minute)
@@ -550,7 +558,7 @@ def handle_message(event):
                                         reply_token=event.reply_token,
                                         messages=[
                                             TextMessage(
-                                                text=f"新增成功！$地區：{region_name}，對應時區 {tz_str}", 
+                                                text=f"新增成功！$地區：{region_name}，對應時區：{tz_str}", 
                                                 emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="021")],
                                                 quote_token=event.message.quote_token
                                             )
