@@ -367,6 +367,37 @@ def track_expense(l, user_id):
     return lst
 
 
+# 清除最後一筆記帳紀錄
+def clear_last_entry(user_id, is_parent):
+    # 認證
+    cr = sac.from_json_keyfile_name(auth_json)
+    gs_client = gspread.authorize(cr)
+    # 抓取現在地區、時區、時間
+    region, tz_str = get_user_setting(user_id)
+    now = dt.datetime.now(pytz.timezone(tz_str))
+    # 開啟試算表
+    if user_id == my_user_id:
+        sheet = gs_client.open_by_key(spreadsheet_key)
+    else:
+        sheet = gs_client.open_by_key(muan_spreadsheet_key)
+    # 判別是否為爸媽的錢
+    if is_parent:
+        wks_name = "爸媽的錢"
+    else:
+        if region != "臺灣":
+            wks_name = f"{str(now.year)} {region}"
+        else:
+            wks_name = f"{str(now.year)}/{str(now.month)}"
+    try:
+        wks = sheet.worksheet(wks_name)
+        values = wks.get_all_values()
+        if len(values) > 1:
+            wks.delete_rows(len(values))
+            return True
+        return False
+    except:
+        return False
+
 # def gpt_response(gpt_prompt):
 #     openai.api_key = os.environ["OPENAI_API_KEY"]
 #     response = openai.Completion.create(
@@ -558,7 +589,7 @@ def handle_message(event):
                                         reply_token=event.reply_token,
                                         messages=[
                                             TextMessage(
-                                                text=f"新增成功！$地區：{region_name}，對應時區：{tz_str}", 
+                                                text=f"新增成功！${region_name}的對應時區為{tz_str}", 
                                                 emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="021")],
                                                 quote_token=event.message.quote_token
                                             )
@@ -615,14 +646,55 @@ def handle_message(event):
                                         reply_token=event.reply_token,
                                         messages=[
                                             TextMessage(
-                                                text="設定失敗！$請檢查資訊或格式是否正確", 
+                                                text=f"設定失敗！$地區 {region_name} 尚未註冊，請先使用「新增地區 <地區名稱> <時區字串>」指令", 
                                                 emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="024")],
                                                 quote_token=event.message.quote_token
                                             )
                                         ]
                                     )
                                 )
-                            
+                    elif l[0] == "清除":
+                        if not (len(l) == 1) and not (len(l) == 2 and l[1] == "爸媽"):
+                            line_bot_api.reply_message_with_http_info(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=[
+                                        TextMessage(
+                                            text=f"清除失敗！$請檢查格式是否正確", 
+                                            emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="024")],
+                                            quote_token=event.message.quote_token
+                                        )
+                                    ]
+                                )
+                            )
+                        else:
+                            res = clear_last_entry(event.source.user_id, (len(l) == 2))
+                            if res:
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text=f"清除成功！$", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="008")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
+                            else:
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text=f"清除失敗！$目前該工作表上沒有記帳紀錄", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="010")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
                     else:
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
