@@ -43,9 +43,11 @@ auth_json = "autoupload-336306-711b168145e6.json"
 gs_scopes = ["https://spreadsheets.google.com/feeds"]
 spreadsheet_key = "1MfgcbA0lW58HaFYFsogG86jXCVDj2RLzT0_LSZcKm_w"
 muan_spreadsheet_key = "1DD5pvHvoYi5hYhSEVkdjzddX-GaobnrJxO6Hpl8wxv4"
+setting_sheet_key = "1VzaD8kM0H7IE9cybKiRUhOOo3Z7njlhwELFJCm07YQc"
 my_user_id = "U3e5359d656fc6d1d6610ddcb33323bde"
 muan_user_id = "U56745f8381f264a269dbca24eb4c6977"
 mom_user_id = "U587c68afa4b2167d47d76d72dcd7a0d3"
+CONFIG_PATH = 'region.json'
 bible_group_id = "Cbbf8bfb6f0e42e94f6d2edcfd6e231cd"
 
 
@@ -118,22 +120,81 @@ def Can_Send(event):
     return False
 
 
+
+# 記帳相關
+# 確保 Settings 工作表存在
+def init_setting_sheet():
+    # 認證
+    cr = sac.from_json_keyfile_name(auth_json)
+    gs_client = gspread.authorize(cr)
+    ss = gs_client.open_by_key(setting_sheet_key)
+    try:
+        sheet = ss.worksheet("setting")
+    except gspread.exceptions.WorksheetNotFound:
+        sheet = ss.add_worksheet(title="setting", rows=100, cols=3)
+        # 建立表頭
+        sheet.append_row(['region_name', 'timezone', 'user_id'])
+    return sheet
+
+# 新增地區對應時區
+def add_new_region(region_name, timezone_str):
+    # 驗證時區
+    pytz.timezone(timezone_str)
+
+    sheet = init_setting_sheet()
+    # 檢查是否已存在同名 region
+    regs = sheet.get_all_records()
+    for r in regs:
+        if r['region_name'] == region_name and r['user_id'] == '':
+            # 已有全域 region
+            sheet.update_cell(regs.index(r) + 2, 2, timezone_str)
+            return
+    # append 新 region（user_id 空代表可被多人使用）
+    sheet.append_row([region_name, timezone_str, ''])
+
+# 設定使用者地區
+def set_user_region(user_id, region_name):
+    sheet = init_setting_sheet()
+    regs = sheet.get_all_records()
+    # 先確認 region_name 有沒有登錄
+    tz = None
+    for r in regs:
+        if r['region_name'] == region_name and r['user_id'] == '':
+            tz = r['timezone']
+            break
+    if tz is None:
+        raise KeyError(f'地區 {region_name} 尚未註冊，請先使用「新增地區 <地區名稱> <時區字串>」指令。')
+    # 檢查 user_id 是否已有設定，若有就更新
+    for idx, r in enumerate(regs, start=2):
+        if r['user_id'] == user_id:
+            sheet.update_cell(idx, 1, region_name)
+            sheet.update_cell(idx, 2, tz)
+            return
+    # 否則附加一行
+    sheet.append_row([region_name, tz, user_id])
+
+# 取得使用者設定
+def get_user_setting(user_id):
+    sheet = init_setting_sheet()
+    regs = sheet.get_all_records()
+    for r in regs:
+        if r['user_id'] == user_id:
+            return r['region_name'], r['timezone']
+    # 沒設定，回傳預設臺灣
+    for r in regs:
+        if r['region_name'] == '臺灣' and r['user_id'] == '':
+            return '臺灣', r['timezone']
+    return '臺灣', 'Asia/Taipei'
+
+
 # 記帳
 def track_expense(l, user_id):
     # 認證
     cr = sac.from_json_keyfile_name(auth_json)
     gs_client = gspread.authorize(cr)
-    # 抓取現在時間
-    now = dt.datetime.now(pytz.timezone("ROC"))
-    foreign_mode = 0
-    # 是否為外國記帳模式
-    if now.year == 2025 and user_id == my_user_id and ((now.month == 6 and now.day >= 20) or (now.month == 7 and now.day <= 19)): 
-        foreign_mode = 1
-        country = "新加坡"
-    elif now.year == 2025 and now.month == 7 and now.day >= 22 and now.day <= 28:
-        now = dt.datetime.now(pytz.timezone("Japan"))
-        foreign_mode = 1
-        country = "日本"
+    # 抓取現在地區、時區、時間
+    region, tz_str = get_user_setting(user_id)
+    now = dt.datetime.now(tz_str)
     # 另外補齊分鐘的0
     if now.minute < 10:
         minute = "0" + str(now.minute)
@@ -152,8 +213,8 @@ def track_expense(l, user_id):
         wks_name = "爸媽的錢"
     else:
         is_parent = 0
-        if foreign_mode:
-            wks_name = f"{str(now.year)} {country}"
+        if region != "臺灣":
+            wks_name = f"{str(now.year)} {region}"
         else:
             wks_name = f"{str(now.year)}/{str(now.month)}"
     try:
@@ -464,6 +525,96 @@ def handle_message(event):
                                 ]
                             )
                         )
+                    # 新增地區指令
+                    elif l[0] == "新增地區":
+                        # 輸入格式錯誤
+                        if(len(l) != 3):
+                            line_bot_api.reply_message_with_http_info(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=[
+                                        TextMessage(
+                                            text="格式錯誤！$請用「新增地區 <地區名稱> <時區字串>」", 
+                                            emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="013")],
+                                            quote_token=event.message.quote_token
+                                        )
+                                    ]
+                                )
+                            )
+                        else:
+                            region_name, tz_str = l[1], l[2]
+                            try: # 嘗試新增
+                                add_new_region(region_name, tz_str)
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text=f"新增成功！$地區：{region_name}，對應時區 {tz_str}", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="021")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
+                            except: # 無法新增
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text="新增失敗！$請檢查資訊或格式是否正確", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="024")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
+
+                    elif l[0] == "地區":
+                        if len(l) != 2:
+                            line_bot_api.reply_message_with_http_info(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=[
+                                        TextMessage(
+                                            text="格式錯誤！$請用「地區 <地區名稱>」", 
+                                            emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="013")],
+                                            quote_token=event.message.quote_token
+                                        )
+                                    ]
+                                )
+                            )
+                        else:
+                            region_name = l[1]
+                            try:
+                                set_user_region(event.source.user_id, l[1])
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text=f"設定成功！$目前地區為{region_name}", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="021")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
+                            except:
+                                line_bot_api.reply_message_with_http_info(
+                                    ReplyMessageRequest(
+                                        reply_token=event.reply_token,
+                                        messages=[
+                                            TextMessage(
+                                                text="設定失敗！$請檢查資訊或格式是否正確", 
+                                                emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="024")],
+                                                quote_token=event.message.quote_token
+                                            )
+                                        ]
+                                    )
+                                )
+                            
                     else:
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
