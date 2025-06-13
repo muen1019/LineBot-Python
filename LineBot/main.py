@@ -384,17 +384,37 @@ def clear_last_entry(user_id, is_parent):
     if is_parent:
         wks_name = "爸媽的錢"
     else:
+        # 判斷是否為出國模式
         if region != "臺灣":
             wks_name = f"{str(now.year)} {region}"
         else:
             wks_name = f"{str(now.year)}/{str(now.month)}"
+    pivot_name = wks_name + ' 樞紐分析表'
+    # 嘗試刪除最後一列
     try:
         wks = sheet.worksheet(wks_name)
         values = wks.get_all_values()
+        # 有資料：刪除最後一行
         if len(values) > 1:
             wks.delete_rows(len(values))
+            # 再次確認是否只剩標題列
+            if len(wks.get_all_values()) <= 1:
+                sheet.del_worksheet(wks)
+                try:
+                    pivot_wks = sheet.worksheet(pivot_name)
+                    sheet.del_worksheet(pivot_wks)
+                except:
+                    pass
             return True
-        return False
+        # 無資料：直接刪除該工作表
+        else:
+            sheet.del_worksheet(wks)
+            try:
+                pivot_wks = sheet.worksheet(pivot_name)
+                sheet.del_worksheet(pivot_wks)
+            except:
+                pass
+            return True
     except:
         return False
 
@@ -439,30 +459,6 @@ def send_bible():
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結"
 
-# 自動傳送當天陪你讀聖經影片
-def bible_thread():
-    while True:
-        current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
-        while current_time.hour != 6 or current_time.minute != 0:
-            sleep(30)
-            requests.get("https://linebot-python-cfwy.onrender.com")
-            current_time = dt.datetime.now(pytz.timezone("Asia/Taipei"))
-        
-        msg = send_bible()
-
-        with ApiClient(configuration) as api_client:
-            # 取得 line bot api
-            line_bot_api = MessagingApi(api_client)
-            # 發送訊息
-            line_bot_api.push_message_with_http_info(
-                PushMessageRequest(
-                    to=bible_group_id,
-                    messages=[
-                        TextMessage(text=msg)
-                    ]
-                )
-            )
-        sleep(60)
 
 
 def get_message_content(message_id, save_path):
@@ -781,8 +777,7 @@ def running():
 
 if __name__ == "__main__":
     try:
-        # bible_t = threading.Thread(target=bible_thread)
-        # bible_t.start()
         app.run(host="0.0.0.0")
+        print("start running!")
     except:
         os.system("kill 1")
