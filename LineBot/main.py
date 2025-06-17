@@ -459,6 +459,22 @@ def send_bible():
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結"
 
+# 讀取當天跑步資訊
+def get_today_run_info():
+    # 載入更新後的課表
+    with open("run_schedule.json", "r", encoding="utf-8") as f:
+        schedule = load(f)
+    today = dt.datetime.now(pytz.timezone("Asia/Taipei")).strftime("%Y-%m-%d")
+    if today in schedule:
+        distance, pace = schedule[today]
+        if distance == "休息/交叉訓練":
+            return f"今天是休息日或交叉訓練，記得放鬆一下！"
+        else:
+            return f"今日課表：{distance}\n配速：{pace}"
+    else:
+        return "今天沒有安排跑步課表喔！"
+
+
 
 
 def get_message_content(message_id, save_path):
@@ -691,6 +707,13 @@ def handle_message(event):
                                         ]
                                     )
                                 )
+                    elif event.message.text == "跑步":
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text=get_today_run_info())]
+                            )
+                        )
                     else:
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
