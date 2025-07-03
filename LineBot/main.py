@@ -232,13 +232,13 @@ def track_expense(l, user_id):
         # 建立新workbook
         wks = sheet.add_worksheet(wks_name, 0, 0)
         new_sheet = 1
-        row_value = ["日期", "時間", "類別", "項目", "收入", "支出", "總計"]
+        row_value = ["日期", "時間", "類別", "項目", "收入", "支出", "總計", "備註"]
         wks.append_row(row_value)
     # 判別收入或支出
-    if l[0].replace(".", "").isdigit():
+    if l[0].replace(".", "").isdigit(): # 收入
         if is_parent: row_value = [f"{now.month}/{now.day}", f"{now.hour}:{minute}", l[1], l[0], ""]
         else: row_value = [f"{now.month}/{now.day}", f"{now.hour}:{minute}", l[2], l[1], l[0], ""]
-    else:
+    else: # 支出
         if is_parent: row_value = [f"{now.month}/{now.day}", f"{now.hour}:{minute}", l[0], "", l[1]]
         else: row_value = [f"{now.month}/{now.day}", f"{now.hour}:{minute}", l[2], l[0], "", l[1]]
     # 加入新資料
@@ -252,10 +252,13 @@ def track_expense(l, user_id):
     else:
         if is_parent: row_value.append(f"=SUM(D{length + 1}, -E{length + 1}, F{length})")
         else: row_value.append(f"=SUM(E{length + 1}, -F{length + 1}, G{length})")
+    # 加上備註
+    if len(l) == 4: row_value.append(l[3])
     wks.append_row(row_value, value_input_option="USER_ENTERED")
     # 回傳剩餘金額
     all_data = wks.get_all_values()
-    lst = all_data[-1][-1]
+    if is_parent: lst = all_data[-1][5]
+    else: lst = all_data[-1][6]
 
     # 創建 Pivot table(如果需要的話)
     if new_sheet:
