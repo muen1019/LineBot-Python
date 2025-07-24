@@ -570,7 +570,7 @@ def handle_message(event):
 
             elif event.source.type == "user":
                 # 記帳
-                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id or event.source.user_id == gorden_spreadsheet_key:
+                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id or event.source.user_id == gorden_user_id:
                     l = list(event.message.text.split())
                     if l[0].replace(".", "").isdigit() or (len(l) > 1 and l[1].replace(".", "").isdigit()):
                         lst = track_expense(l, event.source.user_id)
