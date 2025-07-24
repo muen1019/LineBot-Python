@@ -43,9 +43,11 @@ auth_json = "autoupload-336306-711b168145e6.json"
 gs_scopes = ["https://spreadsheets.google.com/feeds"]
 spreadsheet_key = "1MfgcbA0lW58HaFYFsogG86jXCVDj2RLzT0_LSZcKm_w"
 muan_spreadsheet_key = "1DD5pvHvoYi5hYhSEVkdjzddX-GaobnrJxO6Hpl8wxv4"
+gorden_spreadsheet_key = "1L7FQE54CD88DP0y-2Wqir1VkPoK-B34Z2E7H7LIpb7c"
 setting_sheet_key = "1VzaD8kM0H7IE9cybKiRUhOOo3Z7njlhwELFJCm07YQc"
 my_user_id = "U3e5359d656fc6d1d6610ddcb33323bde"
 muan_user_id = "U56745f8381f264a269dbca24eb4c6977"
+gorden_user_id = "U01f7154cb1cb9638a364157d03a0d932"
 mom_user_id = "U587c68afa4b2167d47d76d72dcd7a0d3"
 CONFIG_PATH = 'region.json'
 bible_group_id = "Cbbf8bfb6f0e42e94f6d2edcfd6e231cd"
@@ -212,16 +214,19 @@ def track_expense(l, user_id):
     if user_id == my_user_id:
         sheet = gs_client.open_by_key(spreadsheet_key)
         person = "沐恩"
-    else:
+    elif user_id == muan_user_id:
         sheet = gs_client.open_by_key(muan_spreadsheet_key)
         person = "沐安"
+    else:
+        sheet = gs_client.open_by_key(gorden_spreadsheet_key)
+        person = "鐙振"
     # 判別是否為爸媽的錢
-    if (len(l) > 2 and l[2] == "爸媽") or len(l) == 2:
+    if ((len(l) > 2 and l[2] == "爸媽") or len(l) == 2) and (user_id == my_user_id or user_id == muan_user_id):
         is_parent = 1
         wks_name = "爸媽的錢"
     else:
         is_parent = 0
-        if region != "臺灣":
+        if region != "臺灣" and region != "台灣":
             wks_name = f"{str(now.year)} {region}"
         else:
             wks_name = f"{str(now.year)}/{str(now.month)}"
@@ -381,8 +386,10 @@ def clear_last_entry(user_id, is_parent):
     # 開啟試算表
     if user_id == my_user_id:
         sheet = gs_client.open_by_key(spreadsheet_key)
-    else:
+    elif user_id == muan_spreadsheet_key:
         sheet = gs_client.open_by_key(muan_spreadsheet_key)
+    else:
+        sheet = gs_client.open_by_key(gorden_spreadsheet_key)
     # 判別是否為爸媽的錢
     if is_parent:
         wks_name = "爸媽的錢"
@@ -563,7 +570,7 @@ def handle_message(event):
 
             elif event.source.type == "user":
                 # 記帳
-                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id:
+                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id or event.source.user_id == gorden_spreadsheet_key:
                     l = list(event.message.text.split())
                     if l[0].replace(".", "").isdigit() or (len(l) > 1 and l[1].replace(".", "").isdigit()):
                         lst = track_expense(l, event.source.user_id)
