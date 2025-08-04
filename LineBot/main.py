@@ -266,72 +266,71 @@ def track_expense(l, user_id):
     else: lst = all_data[-1][6]
 
     # 創建 Pivot table(如果需要的話)
-    if new_sheet:
-        try:
-            pivot_wks = sheet.worsheet(wks_name + " 樞紐分析表")
-        except:
-            pivot_wks = sheet.add_worksheet(wks_name + " 樞紐分析表", 0, 0)
-            # 定義樞紐表的配置
-            pivot_table_request = {
-                "updateCells": {
-                    "rows": {
-                        "values": [
-                            {
-                                "pivotTable": {
-                                    "source": {
-                                        "sheetId": wks.id,
-                                        "startRowIndex": 0,
-                                        "startColumnIndex": 0,
-                                        "endRowIndex": 1000,  # 根據您的數據範圍進行調整
-                                        "endColumnIndex": 7
+    try:
+        pivot_wks = sheet.worksheet(wks_name + " 樞紐分析表")
+    except:
+        pivot_wks = sheet.add_worksheet(wks_name + " 樞紐分析表", 0, 0)
+        # 定義樞紐表的配置
+        pivot_table_request = {
+            "updateCells": {
+                "rows": {
+                    "values": [
+                        {
+                            "pivotTable": {
+                                "source": {
+                                    "sheetId": wks.id,
+                                    "startRowIndex": 0,
+                                    "startColumnIndex": 0,
+                                    "endRowIndex": 1000,  # 根據您的數據範圍進行調整
+                                    "endColumnIndex": 7
+                                },
+                                "rows": [
+                                    {
+                                        "sourceColumnOffset": 2,
+                                        "showTotals": True,
+                                        "sortOrder": "ASCENDING"
                                     },
-                                    "rows": [
-                                        {
-                                            "sourceColumnOffset": 2,
-                                            "showTotals": True,
-                                            "sortOrder": "ASCENDING"
-                                        },
-                                        {
-                                            "sourceColumnOffset": 0,
-                                            "showTotals": True,
-                                            "sortOrder": "ASCENDING"
-                                        },
-                                        {
-                                            "sourceColumnOffset": 3,
-                                            "showTotals": False,
-                                            "sortOrder": "ASCENDING"
-                                        }
-                                    ],
-                                    "columns": [],
-                                    "values": [
-                                        {
-                                            "summarizeFunction": "SUM",
-                                            "formula": "='收入' - '支出'",  # 使用自定義公式
-                                            "name": "金額"
-                                        }
-                                    ],
-                                    "valueLayout": "HORIZONTAL"
-                                }
+                                    {
+                                        "sourceColumnOffset": 0,
+                                        "showTotals": True,
+                                        "sortOrder": "ASCENDING"
+                                    },
+                                    {
+                                        "sourceColumnOffset": 3,
+                                        "showTotals": False,
+                                        "sortOrder": "ASCENDING"
+                                    }
+                                ],
+                                "columns": [],
+                                "values": [
+                                    {
+                                        "summarizeFunction": "SUM",
+                                        "formula": "='收入' - '支出'",  # 使用自定義公式
+                                        "name": "金額"
+                                    }
+                                ],
+                                "valueLayout": "HORIZONTAL"
                             }
-                        ]
-                    },
-                    "start": {
-                        "sheetId": pivot_wks.id,
-                        "rowIndex": 0,
-                        "columnIndex": 0
-                    },
-                    "fields": "pivotTable"
-                }
+                        }
+                    ]
+                },
+                "start": {
+                    "sheetId": pivot_wks.id,
+                    "rowIndex": 0,
+                    "columnIndex": 0
+                },
+                "fields": "pivotTable"
             }
+        }
 
-            # 添加樞紐表到試算表中
-            body = {
-                "requests": [
-                    pivot_table_request
-                ]
-            }
+        # 添加樞紐表到試算表中
+        body = {
+            "requests": [
+                pivot_table_request
+            ]
+        }
 
-            sheet.batch_update(body)
+        sheet.batch_update(body)
 
     # 回傳資料給媽媽
     if is_parent:
@@ -406,6 +405,12 @@ def clear_last_entry(user_id, is_parent):
         values = wks.get_all_values()
         # 有資料：刪除最後一行
         if len(values) > 1:
+            last_row = values[-1]
+            # 項目名稱位置依據你的表格格式調整
+            if is_parent:
+                item_name = last_row[2]
+            else:
+                item_name = last_row[3]
             wks.delete_rows(len(values))
             # 再次確認是否只剩標題列
             if len(wks.get_all_values()) <= 1:
@@ -415,7 +420,7 @@ def clear_last_entry(user_id, is_parent):
                     sheet.del_worksheet(pivot_wks)
                 except:
                     pass
-            return True
+            return item_name
         # 無資料：直接刪除該工作表
         else:
             sheet.del_worksheet(wks)
@@ -424,9 +429,9 @@ def clear_last_entry(user_id, is_parent):
                 sheet.del_worksheet(pivot_wks)
             except:
                 pass
-            return True
+            return None
     except:
-        return False
+        return None
 
 # def gpt_response(gpt_prompt):
 #     openai.api_key = os.environ["OPENAI_API_KEY"]
@@ -697,7 +702,7 @@ def handle_message(event):
                                         reply_token=event.reply_token,
                                         messages=[
                                             TextMessage(
-                                                text=f"清除成功！$", 
+                                                text=f"清除成功！$已移除項目：{res}", 
                                                 emojis = [Emoji(index=5, product_id="5ac1bfd5040ab15980c9b435", emoji_id="008")],
                                                 quote_token=event.message.quote_token
                                             )
