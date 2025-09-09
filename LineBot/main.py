@@ -465,10 +465,10 @@ def send_bible():
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
     keyword = d[(current_date - start_date).days % len(d)]
-    result = YoutubeSearch("陪你讀聖經2 " + keyword, max_results=5).to_dict()
+    result = YoutubeSearch("陪你讀聖經3 " + keyword, max_results=5).to_dict()
     for video in result:
         title = video["title"]
-        if "陪你讀聖經2" in title and keyword in title:
+        if "陪你讀聖經3" in title and keyword in title:
             video_url = "https://youtu.be/watch?v=" + video["id"]
             print(video_url)
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
