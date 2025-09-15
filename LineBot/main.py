@@ -150,6 +150,7 @@ def init_user_region_sheet():
 
 # 新增地區對應時區
 def add_new_region(region_name, timezone_str):
+    region_name = region_name.replace("台", "臺") # 統一用「臺」而非「台」
     try:
         pytz.timezone(timezone_str)
     except pytz.UnknownTimeZoneError:
@@ -164,6 +165,7 @@ def add_new_region(region_name, timezone_str):
 
 # 設定使用者地區
 def set_user_region(user_id, region_name):
+    region_name = region_name.replace("台", "臺") # 統一用「臺」而非「台」
     region_sheet = init_region_sheet()
     user_sheet = init_user_region_sheet()
     regions = region_sheet.get_all_records()
