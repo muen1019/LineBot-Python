@@ -219,7 +219,7 @@ def track_expense(l, user_id):
     elif user_id == muan_user_id:
         sheet = gs_client.open_by_key(muan_spreadsheet_key)
         person = "沐安"
-    else:
+    elif user_id == gorden_user_id:
         sheet = gs_client.open_by_key(gorden_spreadsheet_key)
         person = "鐙振"
     # 判別是否為爸媽的錢
@@ -387,9 +387,9 @@ def clear_last_entry(user_id, is_parent):
     # 開啟試算表
     if user_id == my_user_id:
         sheet = gs_client.open_by_key(spreadsheet_key)
-    elif user_id == muan_spreadsheet_key:
+    elif user_id == muan_user_id:
         sheet = gs_client.open_by_key(muan_spreadsheet_key)
-    else:
+    elif user_id == gorden_user_id:
         sheet = gs_client.open_by_key(gorden_spreadsheet_key)
     # 判別是否為爸媽的錢
     if is_parent:
