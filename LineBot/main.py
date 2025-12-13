@@ -468,7 +468,6 @@ def send_bible():
         d = load(f)
     keyword = d[(current_date - start_date).days % len(d)]
     result = YoutubeSearch("陪你讀聖經3 " + keyword, max_results=5).to_dict()
-    return str("\n".join([f"https://youtu.be/watch?v={video['id']}" for video in result]))
     for video in result:
         title = video["title"]
         if "陪你讀聖經3" in title and keyword in title:
