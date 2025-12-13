@@ -474,7 +474,7 @@ def send_bible():
             video_url = "https://youtu.be/watch?v=" + video["id"]
             print(video_url)
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
-    return f"{current_date.strftime('%Y/%m/%d')} {result[0]['title']}\nhttps://youtu.be/watch?v={result[0]['id']}"
+    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結"
 
 # 讀取當天跑步資訊
