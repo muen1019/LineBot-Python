@@ -507,7 +507,7 @@ def send_bible():
             print(video_url)
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
     # return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
-    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結"
+    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結\n{result[0]['title']}"
 
 # 讀取當天跑步資訊
 def get_today_run_info():
