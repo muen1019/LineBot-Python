@@ -532,7 +532,7 @@ def get_tomorrow_run_info():
     tomorrow = (dt.datetime.now(pytz.timezone("Asia/Taipei")) + dt.timedelta(days=1)).strftime("%Y-%m-%d")
     if tomorrow in schedule:
         distance, pace = schedule[tomorrow]
-        if distance == "休息/交叉訓練":
+        if "休息" in distance:
             return f"明天是休息日或交叉訓練，記得放鬆一下！"
         else:
             return f"明日課表：{distance}\n配速：{pace}"
