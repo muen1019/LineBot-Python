@@ -22,7 +22,8 @@ import datetime as dt
 import pytz
 import threading
 from time import sleep
-from youtube_search import YoutubeSearch
+# from youtube_search import YoutubeSearch
+from youtube_utils import CustomYoutubeSearch
 from json import dump, load
 import re
 # from revChatGPT.V1 import Chatbot 
@@ -468,45 +469,16 @@ def send_bible():
     with open("bible.json", "r", encoding="utf-8") as f:
         d = load(f)
     keyword = d[(current_date - start_date).days % len(d)]
-    
-    # Bible book mapping
-    bible_books = {
-        "創世記": "Genesis", "出埃及記": "Exodus", "利未記": "Leviticus", "民數記": "Numbers", "申命記": "Deuteronomy",
-        "約書亞記": "Joshua", "士師記": "Judges", "路得記": "Ruth", "撒母耳記上": "1 Samuel", "撒母耳記下": "2 Samuel",
-        "列王紀上": "1 Kings", "列王紀下": "2 Kings", "歷代志上": "1 Chronicles", "歷代志下": "2 Chronicles",
-        "以斯拉記": "Ezra", "尼希米記": "Nehemiah", "以斯帖記": "Esther", "約伯記": "Job", "詩篇": "Psalms",
-        "箴言": "Proverbs", "傳道書": "Ecclesiastes", "雅歌": "Song of Solomon", "以賽亞書": "Isaiah",
-        "耶利米書": "Jeremiah", "耶利米哀歌": "Lamentations", "以西結書": "Ezekiel", "但以理書": "Daniel",
-        "何西阿書": "Hosea", "約珥書": "Joel", "阿摩司書": "Amos", "俄巴底亞書": "Obadiah", "約拿書": "Jonah",
-        "彌迦書": "Micah", "那鴻書": "Nahum", "哈巴谷書": "Habakkuk", "西番雅書": "Zephaniah", "哈該書": "Haggai",
-        "撒迦利亞書": "Zechariah", "瑪拉基書": "Malachi",
-        "馬太福音": "Matthew", "馬可福音": "Mark", "路加福音": "Luke", "約翰福音": "John", "使徒行傳": "Acts",
-        "羅馬書": "Romans", "哥林多前書": "1 Corinthians", "哥林多後書": "2 Corinthians", "加拉太書": "Galatians",
-        "以弗所書": "Ephesians", "腓立比書": "Philippians", "歌羅西書": "Colossians",
-        "帖撒羅尼迦前書": "1 Thessalonians", "帖撒羅尼迦後書": "2 Thessalonians",
-        "提摩太前書": "1 Timothy", "提摩太後書": "2 Timothy", "提多書": "Titus", "腓利門書": "Philemon",
-        "希伯來書": "Hebrews", "雅各書": "James", "彼得前書": "1 Peter", "彼得後書": "2 Peter",
-        "約翰一書": "1 John", "約翰二書": "2 John", "約翰三書": "3 John", "猶大書": "Jude", "啟示錄": "Revelation"
-    }
 
-    result = YoutubeSearch("陪你讀聖經3 " + keyword, max_results=5).to_dict()
-
-    # Parse keyword
-    match = re.match(r"(\D+)(\d+)", keyword)
-    english_keyword = ""
-    if match:
-        book_name = match.group(1)
-        chapter = match.group(2)
-        if book_name in bible_books:
-            english_keyword = f"{bible_books[book_name]} {chapter}"
+    result = CustomYoutubeSearch("陪你讀聖經3 " + keyword, max_results=5).to_dict()
 
     for video in result:
         title = video["title"]
-        if ("陪你讀聖經3" in title or "Reading the Bible with You 3" in title) and (keyword in title or (english_keyword and english_keyword in title)):
+        if "陪你讀聖經3" in title and keyword in title:
             video_url = "https://youtu.be/watch?v=" + video["id"]
             print(video_url)
-            return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
-    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
+            return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video['title']}\n{video_url}"
+    # return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
     return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結\n{result[0]['title']}"
 
 # 讀取當天跑步資訊
