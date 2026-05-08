@@ -474,12 +474,13 @@ def send_bible():
 
     for video in result:
         title = video["title"]
-        if "陪你讀聖經3" in title and keyword in title:
+        title_norm = title.translate(str.maketrans('０１２３４５６７８９', '0123456789'))
+        if "陪你讀聖經3" in title_norm and keyword in title_norm:
             video_url = "https://youtu.be/watch?v=" + video["id"]
             print(video_url)
             return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n{video_url}"
     # return f"{current_date.strftime('%Y/%m/%d')} {keyword}\nhttps://youtu.be/watch?v={result[0]['id']}"
-    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結\n{result[0]['title']}"
+    return f"{current_date.strftime('%Y/%m/%d')} {keyword}\n找不到符合的影片連結\n{result[0]['title']}\n{"https://youtu.be/watch?v=" + video["id"]}"
 
 # 讀取當天跑步資訊
 def get_today_run_info():
