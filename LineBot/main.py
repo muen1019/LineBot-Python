@@ -47,6 +47,7 @@ spreadsheet_key = "1MfgcbA0lW58HaFYFsogG86jXCVDj2RLzT0_LSZcKm_w"
 muan_spreadsheet_key = "1DD5pvHvoYi5hYhSEVkdjzddX-GaobnrJxO6Hpl8wxv4"
 gorden_spreadsheet_key = "1L7FQE54CD88DP0y-2Wqir1VkPoK-B34Z2E7H7LIpb7c"
 setting_sheet_key = "1VzaD8kM0H7IE9cybKiRUhOOo3Z7njlhwELFJCm07YQc"
+expense_template_sheet_name = "Expense Templates"
 my_user_id = "U3e5359d656fc6d1d6610ddcb33323bde"
 muan_user_id = "U56745f8381f264a269dbca24eb4c6977"
 gorden_user_id = "U01f7154cb1cb9638a364157d03a0d932"
@@ -199,6 +200,122 @@ def get_user_setting(user_id):
         if r['region_name'] == '臺灣':
             return '臺灣', r['timezone']
     return '臺灣', 'ROC'
+
+
+def is_expense_user(user_id):
+    return user_id == my_user_id or user_id == muan_user_id or user_id == gorden_user_id
+
+
+def is_amount(value):
+    return value.replace(".", "").isdigit()
+
+
+def is_expense_tokens(tokens, user_id=None):
+    if len(tokens) < 2:
+        return False
+    has_amount = is_amount(tokens[0]) or is_amount(tokens[1])
+    if not has_amount:
+        return False
+    if user_id in [my_user_id, muan_user_id] and (len(tokens) == 2 or (len(tokens) > 2 and tokens[2] == "爸媽")):
+        return True
+    return len(tokens) >= 3
+
+
+def init_expense_template_sheet():
+    cr = sac.from_json_keyfile_name(auth_json)
+    gs_client = gspread.authorize(cr)
+    ss = gs_client.open_by_key(setting_sheet_key)
+    try:
+        sheet = ss.worksheet(expense_template_sheet_name)
+    except gspread.exceptions.WorksheetNotFound:
+        sheet = ss.add_worksheet(title=expense_template_sheet_name, rows=1000, cols=4)
+        sheet.append_row(['user_id', 'keyword', 'order', 'entry'])
+    if len(sheet.get_all_values()) == 0:
+        sheet.append_row(['user_id', 'keyword', 'order', 'entry'])
+    return sheet
+
+
+def parse_template_records(sheet):
+    values = sheet.get_all_values()
+    records = []
+    for row_idx, row in enumerate(values[1:], start=2):
+        padded = row + [""] * (4 - len(row))
+        user_id, keyword, order, entry = padded[:4]
+        try:
+            order_value = int(order)
+        except:
+            order_value = 0
+        records.append({
+            "row": row_idx,
+            "user_id": user_id,
+            "keyword": keyword,
+            "order": order_value,
+            "entry": entry,
+        })
+    return records
+
+
+def get_expense_template(user_id, keyword):
+    sheet = init_expense_template_sheet()
+    records = [
+        r for r in parse_template_records(sheet)
+        if r["user_id"] == user_id and r["keyword"] == keyword
+    ]
+    records.sort(key=lambda r: (r["order"], r["row"]))
+    return sheet, records
+
+
+def add_expense_template_entry(user_id, keyword, entry):
+    tokens = entry.split()
+    if not keyword or not is_expense_tokens(tokens, user_id):
+        return False, "格式錯誤，請使用：新增 <關鍵字> <記帳內容>"
+    sheet, records = get_expense_template(user_id, keyword)
+    next_order = len(records) + 1
+    sheet.append_row([user_id, keyword, next_order, entry])
+    return True, f"已新增到「{keyword}」第 {next_order} 筆：{entry}"
+
+
+def list_expense_template_entries(user_id, keyword):
+    sheet, records = get_expense_template(user_id, keyword)
+    if not records:
+        return f"找不到「{keyword}」這組記帳模板"
+    lines = [f"{keyword}："]
+    for idx, record in enumerate(records, start=1):
+        lines.append(f"{idx}. {record['entry']}")
+    return "\n".join(lines)
+
+
+def delete_expense_template_entry(user_id, keyword, order_text):
+    if not order_text.isdigit():
+        return False, "格式錯誤，請使用：刪除 <關鍵字> <編號>"
+    delete_order = int(order_text)
+    sheet, records = get_expense_template(user_id, keyword)
+    if delete_order < 1 or delete_order > len(records):
+        return False, f"「{keyword}」沒有第 {delete_order} 筆"
+    deleted_entry = records[delete_order - 1]["entry"]
+    sheet.delete_rows(records[delete_order - 1]["row"])
+    sheet, records = get_expense_template(user_id, keyword)
+    for idx, record in enumerate(records, start=1):
+        if record["order"] != idx:
+            sheet.update_cell(record["row"], 3, idx)
+    return True, f"已刪除「{keyword}」第 {delete_order} 筆：{deleted_entry}"
+
+
+def apply_expense_template(user_id, keyword):
+    sheet, records = get_expense_template(user_id, keyword)
+    if not records:
+        return False, f"找不到「{keyword}」這組記帳模板"
+    invalid_entries = []
+    for idx, record in enumerate(records, start=1):
+        tokens = record["entry"].split()
+        if not is_expense_tokens(tokens, user_id):
+            invalid_entries.append(f"第 {idx} 筆：{record['entry']}")
+    if invalid_entries:
+        return False, f"模板「{keyword}」格式錯誤，沒有寫入任何資料：\n" + "\n".join(invalid_entries)
+    lst = None
+    for record in records:
+        lst = track_expense(record["entry"].split(), user_id)
+    return True, f"已套用「{keyword}」：共 {len(records)} 筆\n最後餘額：{lst}"
 
 
 # 記帳
@@ -598,9 +715,73 @@ def handle_message(event):
 
             elif event.source.type == "user":
                 # 記帳
-                if event.source.user_id == my_user_id or event.source.user_id == muan_user_id or event.source.user_id == gorden_user_id:
+                if is_expense_user(event.source.user_id):
                     l = list(event.message.text.split())
-                    if l[0].replace(".", "").isdigit() or (len(l) > 1 and l[1].replace(".", "").isdigit()):
+                    if len(l) >= 1 and l[0] == "新增":
+                        if len(l) < 4:
+                            msg = "格式錯誤！請使用：新增 <關鍵字> <記帳內容>"
+                        else:
+                            success, msg = add_expense_template_entry(event.source.user_id, l[1], " ".join(l[2:]))
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text=msg,
+                                        quote_token=event.message.quote_token
+                                    )
+                                ]
+                            )
+                        )
+                    elif len(l) >= 1 and l[0] == "查看":
+                        if len(l) != 2:
+                            msg = "格式錯誤！請使用：查看 <關鍵字>"
+                        else:
+                            msg = list_expense_template_entries(event.source.user_id, l[1])
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text=msg,
+                                        quote_token=event.message.quote_token
+                                    )
+                                ]
+                            )
+                        )
+                    elif len(l) >= 1 and l[0] == "刪除":
+                        if len(l) != 3:
+                            msg = "格式錯誤！請使用：刪除 <關鍵字> <編號>"
+                        else:
+                            success, msg = delete_expense_template_entry(event.source.user_id, l[1], l[2])
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text=msg,
+                                        quote_token=event.message.quote_token
+                                    )
+                                ]
+                            )
+                        )
+                    elif len(l) >= 1 and l[0] == "套用":
+                        if len(l) != 2:
+                            msg = "格式錯誤！請使用：套用 <關鍵字>"
+                        else:
+                            success, msg = apply_expense_template(event.source.user_id, l[1])
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[
+                                    TextMessage(
+                                        text=msg,
+                                        quote_token=event.message.quote_token
+                                    )
+                                ]
+                            )
+                        )
+                    elif is_expense_tokens(l, event.source.user_id):
                         lst = track_expense(l, event.source.user_id)
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
@@ -612,6 +793,13 @@ def handle_message(event):
                                         quote_token=event.message.quote_token
                                     )
                                 ]
+                            )
+                        )
+                    elif len(l) == 0:
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text=event.message.text)]
                             )
                         )
                     # 新增地區指令
