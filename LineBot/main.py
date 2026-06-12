@@ -318,6 +318,107 @@ def apply_expense_template(user_id, keyword):
     return True, f"已套用「{keyword}」：共 {len(records)} 筆\n最後餘額：{lst}"
 
 
+def get_help_text(is_authorized):
+    common_help = """【其他關鍵字】
+早安
+聖經
+好電
+
+說明：
+輸入「早安」開頭的文字會回傳早安圖。
+輸入「聖經」開頭的文字會回傳今日讀經影片。
+訊息中包含「好電」會回覆使用者名稱加上「好電⚡」。"""
+    if not is_authorized:
+        return f"""指令說明
+
+{common_help}"""
+
+    return f"""指令說明
+
+【單筆記帳】
+收入格式：
+<金額> <項目> <類別>
+
+支出格式：
+<項目> <金額> <類別>
+
+可加備註：
+<項目> <金額> <類別> <備註>
+
+範例：
+10000 零用錢 收入
+早餐 60 飲食
+捷運 30 交通 悠遊卡
+奉獻 1000 奉獻
+存款 2000 存款
+
+說明：
+金額放第一個代表收入。
+金額放第二個代表支出。
+類別會寫入試算表的「類別」欄。
+
+【爸媽帳】
+收入格式：
+<金額> <項目>
+
+支出格式：
+<項目> <金額>
+
+也可以在第三欄加「爸媽」。
+
+範例：
+1000 零用錢
+晚餐 120
+1000 零用錢 爸媽
+晚餐 120 爸媽
+
+【常用模板】
+新增模板項目：
+新增 月初 10000 零用錢 收入
+新增 月初 奉獻 1000 奉獻
+新增 月初 存款 2000 存款
+
+查看模板：
+查看 月初
+
+套用整組模板：
+套用 月初
+
+刪除模板中的某一筆：
+刪除 月初 2
+
+說明：
+「月初」是模板關鍵字，可以換成家用、固定支出等。
+刪除編號請先用「查看」確認。
+套用模板時會把整組資料一起寫入記帳表。
+
+【清除記帳】
+清除
+清除 爸媽
+
+說明：
+清除會刪除目前工作表最後一筆記帳。
+清除 爸媽會刪除爸媽帳最後一筆。
+
+【地區與時區】
+新增地區 日本 Asia/Tokyo
+地區 日本
+
+說明：
+地區會影響記帳寫入哪個月份或地區工作表，以及使用哪個時區。
+
+【跑步課表】
+跑步
+明天跑步
+
+說明：
+跑步會回覆今天的跑步課表。
+明天跑步會回覆明天的跑步課表。
+如果當天沒有安排課表，會回覆沒有安排。
+
+{common_help}"""
+
+
 # 記帳
 def track_expense(l, user_id):
     # 認證
@@ -666,7 +767,19 @@ def handle_message(event):
         if event.source.type == "group" and event.source.group_id == "Ccea56b432a88c91e8ae50f7399dfdc77": return
         # 處理文字訊息
         if event.message.type == "text":
-            if event.message.text[:2] == "早安":
+            if event.source.type == "user" and event.message.text.strip() == "說明":
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[
+                            TextMessage(
+                                text=get_help_text(is_expense_user(event.source.user_id)),
+                                quote_token=event.message.quote_token
+                            )
+                        ]
+                    )
+                )
+            elif event.message.text[:2] == "早安":
                 pic = f"https://www.crazybless.com/good-morning/morning/image/%E6%97%A9%E5%AE%89%E5%9C%96%E4%B8%8B%E8%BC%89%20({randint(1, 1477)}).jpg"
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
