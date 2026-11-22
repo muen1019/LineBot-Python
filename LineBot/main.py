@@ -708,10 +708,7 @@ def get_today_run_info():
     today = dt.datetime.now(pytz.timezone("Asia/Taipei")).strftime("%Y-%m-%d")
     if today in schedule:
         distance, pace = schedule[today]
-        if distance == "休息/交叉訓練":
-            return f"今天是休息日或交叉訓練，記得放鬆一下！"
-        else:
-            return f"今日課表：{distance}\n配速：{pace}"
+        return f"今日課表：{distance}\n配速：{pace}"
     else:
         return "今天沒有安排跑步課表喔！"
 
@@ -723,10 +720,7 @@ def get_tomorrow_run_info():
     tomorrow = (dt.datetime.now(pytz.timezone("Asia/Taipei")) + dt.timedelta(days=1)).strftime("%Y-%m-%d")
     if tomorrow in schedule:
         distance, pace = schedule[tomorrow]
-        if "休息" in distance:
-            return f"明天是休息日或交叉訓練，記得放鬆一下！"
-        else:
-            return f"明日課表：{distance}\n配速：{pace}"
+        return f"明日課表：{distance}\n配速：{pace}"
     else:
         return "明天沒有安排跑步課表喔！"
 
